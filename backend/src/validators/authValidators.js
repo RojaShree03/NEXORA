@@ -32,37 +32,37 @@ export const registerSchema = z.object({
 
     email: emailSchema,
     password: passwordSchema,
-});
+}).strict();
 
 /* Login validation */
 export const loginSchema = z.object({
     email: emailSchema,
     password: z.string().min(1, 'Password is required.').max(72),
     rememberMe: z.boolean().optional().default(false),
-});
+}).strict();
 
 /* Email OTP verification */
 export const verifyEmailSchema = z.object({
     email: emailSchema,
     otp: z.string().regex(/^\d{6}$/, 'OTP must contain exactly 6 digits.'),
-});
+}).strict();
 
 /* Resend OTP validation */
 export const resendOtpSchema = z.object({
     email: emailSchema,
-});
+}).strict();
 
 /* Forgot password validation */
 export const forgotPasswordSchema = z.object({
     email: emailSchema,
-});
+}).strict();
 
 /* Reset password validation */
 export const resetPasswordSchema = z.object({
     email: emailSchema,
     otp: z.string().regex(/^\d{6}$/, 'OTP must contain exactly 6 digits.'),
     newPassword: passwordSchema,
-});
+}).strict();
 
 /* Update profile validation */
 export const updateProfileSchema = z.object({
@@ -70,5 +70,5 @@ export const updateProfileSchema = z.object({
         .string()
         .trim()
         .min(2, 'Name must contain at least 2 characters.')
-        .max(30, 'Name cannot exceed 30 characters.'),
-});
+        .max(80, 'Name cannot exceed 80 characters.'),
+}).strict();

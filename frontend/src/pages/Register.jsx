@@ -24,10 +24,17 @@ function Register() {
         (requirement) => requirement.valid
     ).length;
 
-    const strengthLabel =
-        !password ? '' :
-            passedRequirements <= 2 ? 'Weak' :
-                passedRequirements <= 4 ? 'Medium' : 'Strong';
+    const passwordValid = passedRequirements === passwordRequirements.length;
+
+    const strengthLabel = !password
+        ? ''
+        : !passwordValid && password.length > 72
+            ? 'Too long'
+            : passedRequirements <= 2
+                ? 'Weak'
+                : passedRequirements <= 4
+                    ? 'Medium'
+                    : 'Strong';
 
     async function handleSubmit(event) {
         event.preventDefault();
@@ -35,7 +42,7 @@ function Register() {
 
         const userData = {
             name: name.trim(),
-            email: email.trim(),
+            email: email.trim().toLowerCase(),
             password,
             confirmPassword,
         };
@@ -107,6 +114,8 @@ function Register() {
                         type="text"
                         placeholder="Your full name"
                         autoComplete="name"
+                        minLength={2}
+                        maxLength={80}
                         value={name}
                         onChange={(event) => {
                             setName(event.target.value);
@@ -138,6 +147,7 @@ function Register() {
                             type={showPassword ? 'text' : 'password'}
                             placeholder="Create a strong password"
                             autoComplete="new-password"
+                            maxLength={72}
                             value={password}
                             onChange={(event) => {
                                 setPassword(event.target.value);
@@ -160,20 +170,16 @@ function Register() {
                         <div className="password-strength" aria-live="polite">
                             <div className="strength-heading">
                                 <span>Password strength</span>
-                                <strong className={`strength-${strengthLabel.toLowerCase()}`}>
+                                <strong className={`strength-${strengthLabel.toLowerCase().replace(/\s+/g, '-')}`}>
                                     {strengthLabel}
                                 </strong>
                             </div>
 
                             <div className="strength-track">
-                                {passwordRequirements.map((requirement, index) => (
+                                {passwordRequirements.map((requirement) => (
                                     <span
                                         key={requirement.label}
-                                        className={
-                                            index < passedRequirements
-                                                ? 'strength-segment passed'
-                                                : 'strength-segment'
-                                        }
+                                        className={`strength-segment${requirement.valid ? ' passed' : ''}`}
                                     />
                                 ))}
                             </div>
@@ -202,6 +208,7 @@ function Register() {
                             type={showConfirmPassword ? 'text' : 'password'}
                             placeholder="Re-enter your password"
                             autoComplete="new-password"
+                            maxLength={72}
                             value={confirmPassword}
                             onChange={(event) => {
                                 setConfirmPassword(event.target.value);
@@ -228,8 +235,7 @@ function Register() {
 
                     {confirmPassword && (
                         <p
-                            className={`password-match ${password === confirmPassword ? 'valid' : ''
-                                }`}
+                            className={`password-match ${password === confirmPassword ? 'valid' : ''}`}
                         >
                             {password === confirmPassword
                                 ? '✓ Passwords match'

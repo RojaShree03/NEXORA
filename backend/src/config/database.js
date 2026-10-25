@@ -4,6 +4,10 @@ import { env } from './environment.js';
 
 export async function connectDatabase() {
     try {
+        if (!env.MONGODB_URI) {
+            throw new Error('MONGODB_URI is not configured.');
+        }
+
         const connection = await mongoose.connect(env.MONGODB_URI);
 
         console.log(

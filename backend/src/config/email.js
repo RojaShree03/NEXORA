@@ -15,10 +15,16 @@ export function createEmailTransporter() {
         );
     }
 
+    const port = Number(SMTP_PORT);
+
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error('SMTP_PORT must be a valid port number.');
+    }
+
     return nodemailer.createTransport({
         host: SMTP_HOST,
-        port: Number(SMTP_PORT),
-        secure: Number(SMTP_PORT) === 465,
+        port,
+        secure: port === 465,
         auth: {
             user: SMTP_USER,
             pass: SMTP_PASS,

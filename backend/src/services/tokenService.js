@@ -9,8 +9,14 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 const REMEMBERED_REFRESH_DAYS = 30;
 const DEFAULT_REFRESH_DAYS = 1;
 
+const JWT_ISSUER = 'nexora-api';
+const JWT_AUDIENCE = 'nexora-client';
+const JWT_ALGORITHM = 'HS256';
+
 function hashToken(token) {
-    return createHash('sha256').update(token).digest('hex');
+    return createHash('sha256')
+        .update(token)
+        .digest('hex');
 }
 
 export function createAccessToken(user) {
@@ -21,15 +27,17 @@ export function createAccessToken(user) {
         },
         env.JWT_ACCESS_SECRET,
         {
+            algorithm: JWT_ALGORITHM,
             expiresIn: ACCESS_TOKEN_EXPIRY,
-            issuer: 'nexora-api',
-            audience: 'nexora-client',
+            issuer: JWT_ISSUER,
+            audience: JWT_AUDIENCE,
         }
     );
 }
 
 export async function createRefreshToken(user, rememberMe = false) {
     const token = randomBytes(48).toString('hex');
+
     const expiryDays = rememberMe
         ? REMEMBERED_REFRESH_DAYS
         : DEFAULT_REFRESH_DAYS;
@@ -48,14 +56,21 @@ export async function createRefreshToken(user, rememberMe = false) {
 }
 
 export function verifyAccessToken(token) {
-    return jwt.verify(token, env.JWT_ACCESS_SECRET, {
-        issuer: 'nexora-api',
-        audience: 'nexora-client',
-    });
+    return jwt.verify(
+        token,
+        env.JWT_ACCESS_SECRET,
+        {
+            algorithms: [JWT_ALGORITHM],
+            issuer: JWT_ISSUER,
+            audience: JWT_AUDIENCE,
+        }
+    );
 }
 
 export async function revokeRefreshToken(token) {
-    if (!token) return;
+    if (typeof token !== 'string' || !token) {
+        return;
+    }
 
     await RefreshToken.updateOne(
         {
@@ -77,7 +92,10 @@ export async function validateRefreshToken(token) {
         tokenHash: hashToken(token),
         revokedAt: null,
         expiresAt: { $gt: new Date() },
-    }).populate('userId');
+    }).populate({
+        path: 'userId',
+        select: 'name email role isEmailVerified',
+    });
 
     if (!tokenRecord?.userId) {
         return null;

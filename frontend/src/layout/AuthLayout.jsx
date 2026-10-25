@@ -2,10 +2,12 @@
 import { Link, Outlet } from 'react-router-dom';
 
 function AuthLayout() {
+    const currentYear = new Date().getFullYear();
+
     return (
         <main className="app-container">
             <header className="site-header">
-                <Link className="brand" to="/login">
+                <Link className="brand" to="/login" aria-label="Nexora home">
                     NEXORA<span>.</span>
                 </Link>
 
@@ -17,7 +19,7 @@ function AuthLayout() {
             <Outlet />
 
             <footer className="site-footer">
-                <span>© 2026 NEXORA</span>
+                <span>© {currentYear} NEXORA</span>
                 <span>DESIGNED FOR WHAT'S NEXT</span>
             </footer>
         </main>

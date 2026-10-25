@@ -1,7 +1,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../hooks/useAuth.js';
 import dashboardService from '../services/dashboardService.js';
 
 const defaultStats = [

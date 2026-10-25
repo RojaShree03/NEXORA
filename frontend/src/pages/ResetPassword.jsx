@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import authService from '../services/authservice.js';
 import {
@@ -9,14 +9,31 @@ import {
     getPasswordRequirements,
 } from '../utils/validators.js';
 
+const RESET_EMAIL_KEY = 'nexora_reset_email';
+
+function getStoredEmail() {
+    try {
+        return sessionStorage.getItem(RESET_EMAIL_KEY) || '';
+    } catch {
+        return '';
+    }
+}
+
+function removeStoredEmail() {
+    try {
+        sessionStorage.removeItem(RESET_EMAIL_KEY);
+    } catch {
+        // Storage errors should not block a successful password reset.
+    }
+}
+
 function ResetPassword() {
     const location = useLocation();
     const navigate = useNavigate();
+    const submittingRef = useRef(false);
 
     const [email, setEmail] = useState(
-        location.state?.email ||
-        sessionStorage.getItem('nexora_reset_email') ||
-        ''
+        () => location.state?.email || getStoredEmail()
     );
     const [otp, setOtp] = useState('');
     const [password, setPassword] = useState('');
@@ -28,27 +45,46 @@ function ResetPassword() {
 
     const requirements = getPasswordRequirements(password);
     const strength = requirements.filter((item) => item.valid).length;
+    const passwordIsValid = isValidPassword(password);
+
+    const strengthLabel =
+        password.length === 0
+            ? ''
+            : password.length > 72
+                ? 'Too long'
+                : strength === requirements.length
+                    ? 'Strong'
+                    : strength <= 2
+                        ? 'Weak'
+                        : strength <= 4
+                            ? 'Good'
+                            : 'Almost strong';
+
     const passwordsMatchValue =
         confirmPassword.length > 0 &&
         passwordsMatch(password, confirmPassword);
 
     async function handleSubmit(event) {
         event.preventDefault();
+
+        if (submittingRef.current) return;
+
         setError('');
 
         const normalizedEmail = email.trim().toLowerCase();
+        const trimmedOtp = otp.trim();
 
         if (!isValidEmail(normalizedEmail)) {
             setError('Please enter a valid email address.');
             return;
         }
 
-        if (!/^\d{6}$/.test(otp.trim())) {
+        if (!/^\d{6}$/.test(trimmedOtp)) {
             setError('Please enter the 6-digit reset code.');
             return;
         }
 
-        if (!isValidPassword(password)) {
+        if (!passwordIsValid) {
             setError('Please meet all password requirements.');
             return;
         }
@@ -58,29 +94,32 @@ function ResetPassword() {
             return;
         }
 
-        try {
-            setSubmitting(true);
+        submittingRef.current = true;
+        setSubmitting(true);
 
+        try {
             await authService.resetPassword(
                 normalizedEmail,
-                otp.trim(),
+                trimmedOtp,
                 password
             );
 
-            sessionStorage.removeItem('nexora_reset_email');
+            removeStoredEmail();
 
             navigate('/login', {
                 replace: true,
                 state: {
-                    message: 'Password reset successfully. Please sign in.',
+                    message:
+                        'Password reset successfully. Please sign in.',
                 },
             });
         } catch (requestError) {
             setError(
-                requestError.message ||
+                requestError?.message ||
                 'Unable to reset your password. Please try again.'
             );
         } finally {
+            submittingRef.current = false;
             setSubmitting(false);
         }
     }
@@ -112,7 +151,9 @@ function ResetPassword() {
                     <div className="card-mark">N</div>
                     <p className="eyebrow">RESET PASSWORD</p>
                     <h2>Create new password</h2>
-                    <p>Enter your reset code and choose a new password.</p>
+                    <p>
+                        Enter your reset code and choose a new password.
+                    </p>
                 </div>
 
                 <form
@@ -121,10 +162,12 @@ function ResetPassword() {
                     noValidate
                 >
                     <label htmlFor="email">Email address</label>
+
                     <input
                         id="email"
                         type="email"
                         autoComplete="email"
+                        placeholder="you@example.com"
                         value={email}
                         onChange={(event) => {
                             setEmail(event.target.value);
@@ -134,6 +177,7 @@ function ResetPassword() {
                     />
 
                     <label htmlFor="otp">6-digit reset code</label>
+
                     <input
                         id="otp"
                         type="text"
@@ -144,7 +188,9 @@ function ResetPassword() {
                         value={otp}
                         onChange={(event) => {
                             setOtp(
-                                event.target.value.replace(/\D/g, '').slice(0, 6)
+                                event.target.value
+                                    .replace(/\D/g, '')
+                                    .slice(0, 6)
                             );
                             setError('');
                         }}
@@ -152,6 +198,7 @@ function ResetPassword() {
                     />
 
                     <label htmlFor="password">New password</label>
+
                     <div className="password-wrapper">
                         <input
                             id="password"
@@ -165,11 +212,17 @@ function ResetPassword() {
                             }}
                             required
                         />
+
                         <button
                             className="password-toggle"
                             type="button"
                             onClick={() =>
                                 setShowPassword((previous) => !previous)
+                            }
+                            aria-label={
+                                showPassword
+                                    ? 'Hide new password'
+                                    : 'Show new password'
                             }
                         >
                             {showPassword ? 'Hide' : 'Show'}
@@ -180,22 +233,18 @@ function ResetPassword() {
                         <div className="password-strength">
                             <div className="strength-heading">
                                 <span>Password strength</span>
-                                <span>
-                                    {strength === 0
-                                        ? 'Weak'
-                                        : strength <= 2
-                                            ? 'Low'
-                                            : strength <= 4
-                                                ? 'Good'
-                                                : 'Strong'}
-                                </span>
+                                <span>{strengthLabel}</span>
                             </div>
 
                             <div
                                 className="strength-track"
-                                aria-label={`Password requirements met: ${strength} of 5`}
+                                role="progressbar"
+                                aria-label="Password requirements met"
+                                aria-valuemin={0}
+                                aria-valuemax={requirements.length}
+                                aria-valuenow={strength}
                             >
-                                {requirements.map((item, index) => (
+                                {requirements.map((item) => (
                                     <span
                                         key={item.label}
                                         className="strength-segment"
@@ -228,6 +277,7 @@ function ResetPassword() {
                     <label htmlFor="confirmPassword">
                         Confirm new password
                     </label>
+
                     <div className="password-wrapper">
                         <input
                             id="confirmPassword"
@@ -243,6 +293,7 @@ function ResetPassword() {
                             }}
                             required
                         />
+
                         <button
                             className="password-toggle"
                             type="button"
@@ -250,6 +301,11 @@ function ResetPassword() {
                                 setShowConfirmPassword(
                                     (previous) => !previous
                                 )
+                            }
+                            aria-label={
+                                showConfirmPassword
+                                    ? 'Hide confirmation password'
+                                    : 'Show confirmation password'
                             }
                         >
                             {showConfirmPassword ? 'Hide' : 'Show'}
@@ -264,6 +320,7 @@ function ResetPassword() {
                                     ? '#75bd8b'
                                     : '#e58b83',
                             }}
+                            role="status"
                         >
                             {passwordsMatchValue
                                 ? '✓ Passwords match'

@@ -3,7 +3,7 @@
 export function isValidEmail(email) {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    return emailPattern.test(String(email).trim());
+    return emailPattern.test(String(email ?? '').trim());
 }
 
 /* Password strength validation */
@@ -14,6 +14,7 @@ export function isValidPassword(password) {
 
     return (
         password.length >= 8 &&
+        password.length <= 72 &&
         /[A-Z]/.test(password) &&
         /[a-z]/.test(password) &&
         /\d/.test(password) &&
@@ -22,27 +23,33 @@ export function isValidPassword(password) {
 }
 
 /* Individual password requirements */
-export function getPasswordRequirements(password) {
+export function getPasswordRequirements(password = '') {
+    const value = typeof password === 'string' ? password : '';
+
     return [
         {
             label: 'At least 8 characters',
-            valid: password.length >= 8,
+            valid: value.length >= 8,
+        },
+        {
+            label: 'No more than 72 characters',
+            valid: value.length <= 72,
         },
         {
             label: 'One uppercase letter (A-Z)',
-            valid: /[A-Z]/.test(password),
+            valid: /[A-Z]/.test(value),
         },
         {
             label: 'One lowercase letter (a-z)',
-            valid: /[a-z]/.test(password),
+            valid: /[a-z]/.test(value),
         },
         {
             label: 'One number (0-9)',
-            valid: /\d/.test(password),
+            valid: /\d/.test(value),
         },
         {
             label: 'One special symbol (@, #, !, etc.)',
-            valid: /[^A-Za-z0-9]/.test(password),
+            valid: /[^A-Za-z0-9]/.test(value),
         },
     ];
 }
@@ -63,7 +70,7 @@ export function isRequired(value) {
 
 /* OTP validation */
 export function isValidOtp(otp) {
-    return /^\d{6}$/.test(String(otp));
+    return /^\d{6}$/.test(String(otp ?? ''));
 }
 
 /* Registration form validation */
@@ -72,9 +79,15 @@ export function validateRegistration({
     email,
     password,
     confirmPassword,
-}) {
+} = {}) {
     if (!isRequired(name)) {
         return 'Please enter your full name.';
+    }
+
+    const trimmedName = name.trim();
+
+    if (trimmedName.length < 2 || trimmedName.length > 80) {
+        return 'Name must be between 2 and 80 characters.';
     }
 
     if (!isRequired(email)) {
@@ -85,12 +98,16 @@ export function validateRegistration({
         return 'Please enter a valid email address.';
     }
 
-    if (!password) {
+    if (!isRequired(password)) {
         return 'Please enter a password.';
     }
 
     if (password.length < 8) {
         return 'Password must contain at least 8 characters.';
+    }
+
+    if (password.length > 72) {
+        return 'Password must not exceed 72 characters.';
     }
 
     if (!/[A-Z]/.test(password)) {

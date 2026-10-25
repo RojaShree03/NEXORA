@@ -1,21 +1,22 @@
 
 import {
-    createContext,
     useCallback,
-    useContext,
     useEffect,
     useMemo,
     useState,
 } from 'react';
 
-const ThemeContext = createContext(null);
+import ThemeContext from './theme-context.js';
 
 const THEME_STORAGE_KEY = 'nexora-theme';
 
 function getInitialTheme() {
     try {
         const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-        return savedTheme === 'light' ? 'light' : 'dark';
+
+        return savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : 'dark';
     } catch {
         return 'dark';
     }
@@ -35,9 +36,9 @@ export function ThemeProvider({ children }) {
     }, [theme]);
 
     const toggleTheme = useCallback(() => {
-        setTheme((currentTheme) => (
+        setTheme((currentTheme) =>
             currentTheme === 'dark' ? 'light' : 'dark'
-        ));
+        );
     }, []);
 
     const value = useMemo(
@@ -47,7 +48,7 @@ export function ThemeProvider({ children }) {
             toggleTheme,
             isDark: theme === 'dark',
         }),
-        [theme, toggleTheme],
+        [theme, toggleTheme]
     );
 
     return (
@@ -55,14 +56,4 @@ export function ThemeProvider({ children }) {
             {children}
         </ThemeContext.Provider>
     );
-}
-
-export function useTheme() {
-    const context = useContext(ThemeContext);
-
-    if (!context) {
-        throw new Error('useTheme must be used inside a ThemeProvider.');
-    }
-
-    return context;
 }

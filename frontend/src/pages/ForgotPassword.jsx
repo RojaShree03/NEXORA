@@ -1,10 +1,21 @@
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import authService from '../services/authservice.js';
 
+const RESET_EMAIL_KEY = 'nexora_reset_email';
+
+function saveResetEmail(email) {
+    try {
+        sessionStorage.setItem(RESET_EMAIL_KEY, email);
+    } catch {
+        // Navigation state will still carry the email if storage is unavailable.
+    }
+}
+
 function ForgotPassword() {
     const navigate = useNavigate();
+    const submittingRef = useRef(false);
 
     const [email, setEmail] = useState('');
     const [error, setError] = useState('');
@@ -13,6 +24,9 @@ function ForgotPassword() {
 
     async function handleSubmit(event) {
         event.preventDefault();
+
+        if (submittingRef.current) return;
+
         setError('');
         setMessage('');
 
@@ -23,26 +37,28 @@ function ForgotPassword() {
             return;
         }
 
-        try {
-            setSubmitting(true);
+        submittingRef.current = true;
+        setSubmitting(true);
 
+        try {
             await authService.forgotPassword(trimmedEmail);
 
-            sessionStorage.setItem('nexora_reset_email', trimmedEmail);
-
-            setMessage(
-                'If an account exists for this email, password reset instructions will be sent.'
-            );
+            saveResetEmail(trimmedEmail);
 
             navigate('/reset-password', {
-                state: { email: trimmedEmail },
+                state: {
+                    email: trimmedEmail,
+                    message:
+                        'If an account exists for this email, password reset instructions will be sent.',
+                },
             });
         } catch (requestError) {
             setError(
-                requestError.message ||
+                requestError?.message ||
                 'Unable to process your request. Please try again.'
             );
         } finally {
+            submittingRef.current = false;
             setSubmitting(false);
         }
     }
@@ -77,7 +93,11 @@ function ForgotPassword() {
                     <p>We'll help you get back into your account.</p>
                 </div>
 
-                <form className="login-form" onSubmit={handleSubmit}>
+                <form
+                    className="login-form"
+                    onSubmit={handleSubmit}
+                    noValidate
+                >
                     <label htmlFor="email">Email address</label>
 
                     <input
@@ -96,7 +116,10 @@ function ForgotPassword() {
                     />
 
                     {error && (
-                        <p className="form-message error-message" role="alert">
+                        <p
+                            className="form-message error-message"
+                            role="alert"
+                        >
                             {error}
                         </p>
                     )}
@@ -112,7 +135,9 @@ function ForgotPassword() {
                         type="submit"
                         disabled={submitting}
                     >
-                        {submitting ? 'Sending...' : 'Send reset instructions'}
+                        {submitting
+                            ? 'Sending...'
+                            : 'Send reset instructions'}
                         {!submitting && <span>↗</span>}
                     </button>
                 </form>

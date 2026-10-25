@@ -10,6 +10,7 @@ import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();
 
+// Protect all dashboard routes.
 router.use(authenticate);
 
 router.get('/overview', getDashboardOverview);

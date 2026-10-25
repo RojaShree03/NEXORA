@@ -1,7 +1,6 @@
 
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useRef, useState } from 'react'; import { Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth.js';
 import authService from '../services/authservice.js';
 
 function Profile() {
@@ -12,16 +11,21 @@ function Profile() {
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
 
-    useEffect(() => {
-        setName(user?.name || '');
-    }, [user?.name]);
+    const savingRef = useRef(false);
+
+    const trimmedName = name.trim();
+    const originalName = user?.name || '';
+    const nameIsValid =
+        trimmedName.length >= 2 && trimmedName.length <= 80;
+    const nameHasChanged = trimmedName !== originalName;
 
     async function handleSubmit(event) {
         event.preventDefault();
+
+        if (savingRef.current) return;
+
         setError('');
         setMessage('');
-
-        const trimmedName = name.trim();
 
         if (trimmedName.length < 2) {
             setError('Name must contain at least 2 characters.');
@@ -33,23 +37,31 @@ function Profile() {
             return;
         }
 
-        try {
-            setSaving(true);
+        if (!nameHasChanged) {
+            setMessage('No changes to save.');
+            return;
+        }
 
+        savingRef.current = true;
+        setSaving(true);
+
+        try {
             await authService.updateProfile({ name: trimmedName });
 
-            if (refreshUser) {
+            setName(trimmedName);
+
+            if (typeof refreshUser === 'function') {
                 await refreshUser();
             }
 
-            setName(trimmedName);
             setMessage('Profile updated successfully.');
         } catch (requestError) {
             setError(
-                requestError.message ||
+                requestError?.message ||
                 'Unable to update your profile. Please try again.'
             );
         } finally {
+            savingRef.current = false;
             setSaving(false);
         }
     }
@@ -90,6 +102,7 @@ function Profile() {
                     <div className="dashboard-avatar">
                         {displayName.charAt(0).toUpperCase()}
                     </div>
+
                     <div>
                         <strong>{displayName}</strong>
                         <span>Workspace member</span>
@@ -102,6 +115,7 @@ function Profile() {
                     noValidate
                 >
                     <label htmlFor="profile-name">Full name</label>
+
                     <input
                         id="profile-name"
                         type="text"
@@ -119,15 +133,20 @@ function Profile() {
                     />
 
                     <label htmlFor="profile-email">Email address</label>
+
                     <input
                         id="profile-email"
                         type="email"
+                        autoComplete="email"
                         value={user?.email || ''}
                         readOnly
                     />
 
                     {error && (
-                        <p className="form-message error-message" role="alert">
+                        <p
+                            className="form-message error-message"
+                            role="alert"
+                        >
                             {error}
                         </p>
                     )}
@@ -141,7 +160,11 @@ function Profile() {
                     <button
                         className="sign-in-button"
                         type="submit"
-                        disabled={saving}
+                        disabled={
+                            saving ||
+                            !nameIsValid ||
+                            !nameHasChanged
+                        }
                     >
                         {saving ? 'Saving changes...' : 'Save changes'}
                         {!saving && <span>↗</span>}

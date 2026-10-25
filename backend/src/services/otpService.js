@@ -15,19 +15,27 @@ import {
 const OTP_EXPIRY_MINUTES = 10;
 const MAX_OTP_ATTEMPTS = 5;
 
+const VALID_PURPOSES = new Set([
+    'registration',
+    'password-reset',
+]);
+
 export async function createOtp(user, purpose = 'registration') {
+    if (!user?._id || !user.email) {
+        throw new Error('A valid user is required to create an OTP.');
+    }
+
+    if (!VALID_PURPOSES.has(purpose)) {
+        throw new Error('Invalid OTP purpose.');
+    }
+
     const otp = generateOtp();
 
     const expiresAt = new Date(
         Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000
     );
 
-    await EmailVerification.deleteMany({
-        userId: user._id,
-        purpose,
-    });
-
-    await EmailVerification.create({
+    const record = await EmailVerification.create({
         userId: user._id,
         email: user.email,
         otpHash: hashOtp(otp),
@@ -43,21 +51,24 @@ export async function createOtp(user, purpose = 'registration') {
             await sendVerificationEmail(user.email, otp);
         }
     } catch (error) {
-        // Log the actual error for debugging. Never log passwords or OTPs.
         console.error(
             'OTP email delivery failed:',
             error?.message || error
         );
 
-        await EmailVerification.deleteMany({
-            userId: user._id,
-            purpose,
-        });
+        await EmailVerification.deleteOne({ _id: record._id });
 
         throw new Error(
             'Unable to send the email. Please try again later.'
         );
     }
+
+    // Only after delivery succeeds, invalidate other OTPs for this purpose.
+    await EmailVerification.deleteMany({
+        userId: user._id,
+        purpose,
+        _id: { $ne: record._id },
+    });
 
     return {
         expiresInMinutes: OTP_EXPIRY_MINUTES,
@@ -69,6 +80,14 @@ export async function verifyUserOtp(
     otp,
     purpose = 'registration'
 ) {
+    if (!user?._id || !VALID_PURPOSES.has(purpose)) {
+        throw new Error('Invalid OTP verification request.');
+    }
+
+    if (typeof otp !== 'string' || !otp.trim()) {
+        throw new Error('A valid OTP is required.');
+    }
+
     const record = await EmailVerification.findOne({
         userId: user._id,
         purpose,
@@ -96,7 +115,7 @@ export async function verifyUserOtp(
         );
     }
 
-    const valid = verifyOtpHash(otp, record.otpHash);
+    const valid = verifyOtpHash(otp.trim(), record.otpHash);
 
     if (!valid) {
         record.attempts += 1;

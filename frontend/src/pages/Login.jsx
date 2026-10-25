@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../hooks/useAuth';
 
 function Login() {
     const navigate = useNavigate();
@@ -33,11 +33,6 @@ function Login() {
             return;
         }
 
-        if (password.length < 8) {
-            setError('Password must contain at least 8 characters.');
-            return;
-        }
-
         try {
             setSubmitting(true);
 
@@ -47,10 +42,16 @@ function Login() {
                 rememberMe,
             });
 
-            const destination =
-                location.state?.from?.pathname || '/dashboard';
+            const destination = location.state?.from?.pathname;
 
-            navigate(destination, { replace: true });
+            const safeDestination =
+                typeof destination === 'string' &&
+                    destination.startsWith('/') &&
+                    !destination.startsWith('//')
+                    ? destination
+                    : '/dashboard';
+
+            navigate(safeDestination, { replace: true });
         } catch (requestError) {
             setError(
                 requestError.message ||
@@ -107,6 +108,7 @@ function Login() {
                             setError('');
                         }}
                         aria-invalid={Boolean(error)}
+                        required
                     />
 
                     <div className="password-heading">
@@ -129,6 +131,7 @@ function Login() {
                                 setError('');
                             }}
                             aria-invalid={Boolean(error)}
+                            required
                         />
 
                         <button
@@ -162,7 +165,10 @@ function Login() {
                         aria-atomic="true"
                     >
                         {error && (
-                            <p className="form-message error-message" role="alert">
+                            <p
+                                className="form-message error-message"
+                                role="alert"
+                            >
                                 {error}
                             </p>
                         )}

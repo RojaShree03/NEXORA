@@ -1,7 +1,13 @@
 
 import User from '../models/User.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
-import { createOtp, verifyUserOtp, resendUserOtp } from './otpService.js';
+
+import {
+    createOtp,
+    verifyUserOtp,
+    resendUserOtp,
+} from './otpService.js';
+
 import {
     createAccessToken,
     createRefreshToken,
@@ -10,17 +16,42 @@ import {
 
 const SAFE_USER_FIELDS = 'name email role isEmailVerified createdAt';
 
-export async function registerUser({ name, email, password }) {
-    const normalizedEmail = email.trim().toLowerCase();
+function normalizeEmail(email) {
+    if (typeof email !== 'string' || !email.trim()) {
+        throw new Error('A valid email address is required.');
+    }
 
-    const existingUser = await User.findOne({ email: normalizedEmail });
+    return email.trim().toLowerCase();
+}
+
+export async function registerUser({ name, email, password }) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (typeof name !== 'string' || !name.trim()) {
+        throw new Error('Name is required.');
+    }
+
+    if (typeof password !== 'string' || !password) {
+        throw new Error('Password is required.');
+    }
+
+    const existingUser = await User.findOne({
+        email: normalizedEmail,
+    });
 
     if (existingUser?.isEmailVerified) {
         throw new Error('An account with this email already exists.');
     }
 
+    // Preserve existing unverified accounts rather than deleting them.
     if (existingUser) {
-        await User.deleteOne({ _id: existingUser._id });
+        await resendUserOtp(existingUser, 'registration');
+
+        return {
+            message:
+                'Your account is awaiting email verification. A new verification code has been sent.',
+            email: existingUser.email,
+        };
     }
 
     const user = await User.create({
@@ -33,14 +64,22 @@ export async function registerUser({ name, email, password }) {
     await createOtp(user, 'registration');
 
     return {
-        message: 'Account created. Please verify your email using the OTP sent to you.',
+        message:
+            'Account created. Please verify your email using the OTP sent to you.',
         email: user.email,
     };
 }
 
 export async function verifyRegistrationOtp({ email, otp }) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail });
+    const normalizedEmail = normalizeEmail(email);
+
+    if (typeof otp !== 'string' || !otp.trim()) {
+        throw new Error('A valid verification code is required.');
+    }
+
+    const user = await User.findOne({
+        email: normalizedEmail,
+    });
 
     if (!user) {
         throw new Error('Account not found. Please register again.');
@@ -50,7 +89,7 @@ export async function verifyRegistrationOtp({ email, otp }) {
         throw new Error('This email address is already verified.');
     }
 
-    await verifyUserOtp(user, otp, 'registration');
+    await verifyUserOtp(user, otp.trim(), 'registration');
 
     user.isEmailVerified = true;
     await user.save();
@@ -67,8 +106,11 @@ export async function verifyRegistrationOtp({ email, otp }) {
 }
 
 export async function resendRegistrationOtp(email) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail });
+    const normalizedEmail = normalizeEmail(email);
+
+    const user = await User.findOne({
+        email: normalizedEmail,
+    });
 
     if (!user) {
         throw new Error('Account not found. Please register again.');
@@ -80,28 +122,45 @@ export async function resendRegistrationOtp(email) {
 
     await resendUserOtp(user, 'registration');
 
-    return { message: 'A new verification code has been sent.' };
+    return {
+        message: 'A new verification code has been sent.',
+    };
 }
 
-export async function loginUser({ email, password, rememberMe = false }) {
-    const normalizedEmail = email.trim().toLowerCase();
+export async function loginUser({
+    email,
+    password,
+    rememberMe = false,
+}) {
+    const normalizedEmail = normalizeEmail(email);
 
-    const user = await User.findOne({ email: normalizedEmail })
-        .select('+password');
+    if (typeof password !== 'string' || !password) {
+        throw new Error('Invalid email or password.');
+    }
 
-    if (!user || !(await comparePassword(password, user.password))) {
+    const user = await User.findOne({
+        email: normalizedEmail,
+    }).select('+password');
+
+    if (
+        !user ||
+        !(await comparePassword(password, user.password))
+    ) {
         throw new Error('Invalid email or password.');
     }
 
     if (!user.isEmailVerified) {
-        throw new Error('Please verify your email before signing in.');
+        throw new Error(
+            'Please verify your email before signing in.'
+        );
     }
+
+    const accessToken = createAccessToken(user);
+
+    const refresh = await createRefreshToken(user, rememberMe);
 
     user.lastLoginAt = new Date();
     await user.save();
-
-    const accessToken = createAccessToken(user);
-    const refresh = await createRefreshToken(user, rememberMe);
 
     return {
         accessToken,
@@ -118,7 +177,9 @@ export async function loginUser({ email, password, rememberMe = false }) {
 }
 
 export async function getAuthenticatedUser(userId) {
-    const user = await User.findById(userId).select(SAFE_USER_FIELDS);
+    const user = await User.findById(userId).select(
+        SAFE_USER_FIELDS
+    );
 
     if (!user) {
         throw new Error('User account not found.');
@@ -128,6 +189,11 @@ export async function getAuthenticatedUser(userId) {
 }
 
 export async function logoutUser(refreshToken) {
-    await revokeRefreshToken(refreshToken);
-    return { message: 'Signed out successfully.' };
+    if (refreshToken) {
+        await revokeRefreshToken(refreshToken);
+    }
+
+    return {
+        message: 'Signed out successfully.',
+    };
 }

@@ -1,4 +1,5 @@
 
+import mongoose from 'mongoose';
 import { verifyAccessToken } from '../services/tokenService.js';
 import { sendError } from '../utils/apiResponse.js';
 
@@ -6,14 +7,35 @@ export function authenticate(req, res, next) {
     const token = req.cookies?.accessToken;
 
     if (!token) {
-        return sendError(res, 'Authentication required. Please sign in.', 401);
+        return sendError(
+            res,
+            'Authentication required. Please sign in.',
+            401
+        );
     }
 
     try {
         const payload = verifyAccessToken(token);
 
-        if (!payload.sub) {
-            return sendError(res, 'Invalid authentication token.', 401);
+        if (
+            !payload ||
+            typeof payload.sub !== 'string' ||
+            !payload.sub.trim()
+        ) {
+            return sendError(
+                res,
+                'Invalid authentication token.',
+                401
+            );
+        }
+
+        // The application uses MongoDB user IDs.
+        if (!mongoose.isValidObjectId(payload.sub)) {
+            return sendError(
+                res,
+                'Invalid authentication token.',
+                401
+            );
         }
 
         req.user = {
@@ -22,7 +44,7 @@ export function authenticate(req, res, next) {
         };
 
         return next();
-    } catch {
+    } catch (error) {
         return sendError(
             res,
             'Your session has expired. Please sign in again.',

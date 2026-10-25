@@ -1,21 +1,21 @@
 
-import { sendSuccess } from '../utils/apiResponse.js';
 import User from '../models/User.js';
+import { sendSuccess, sendError } from '../utils/apiResponse.js';
 
 export async function getDashboardOverview(req, res, next) {
     try {
-        const user = await User.findById(req.user.id).select('createdAt lastLoginAt');
-
-        if (!user) {
-            return sendSuccess(res, 'Dashboard overview loaded.', {
-                totalProjects: 0,
-                tasksCompleted: 0,
-                productivity: 0,
-            });
+        if (!req.user?.id) {
+            return sendError(res, 'Authentication required.', 401);
         }
 
-        // Project and task models are not implemented yet.
-        // These values are placeholders until those modules are added.
+        const user = await User.findById(req.user.id)
+            .select('createdAt lastLoginAt');
+
+        if (!user) {
+            return sendError(res, 'User not found.', 404);
+        }
+
+        // Placeholder metrics until project and task modules are implemented.
         return sendSuccess(res, 'Dashboard overview loaded.', {
             totalProjects: 0,
             tasksCompleted: 0,
@@ -30,31 +30,42 @@ export async function getDashboardOverview(req, res, next) {
 
 export async function getRecentActivity(req, res, next) {
     try {
-        const user = await User.findById(req.user.id).select('createdAt lastLoginAt');
-
-        if (!user) {
-            return sendSuccess(res, 'Recent activity loaded.', {
-                activities: [],
-            });
+        if (!req.user?.id) {
+            return sendError(res, 'Authentication required.', 401);
         }
 
-        const activities = [
-            {
-                title: 'Welcome to Nexora',
-                description: 'Your account is ready to use.',
-                time: user.createdAt,
-            },
-        ];
+        const user = await User.findById(req.user.id)
+            .select('createdAt lastLoginAt');
+
+        if (!user) {
+            return sendError(res, 'User not found.', 404);
+        }
+
+        const activities = [];
 
         if (user.lastLoginAt) {
-            activities.unshift({
+            activities.push({
                 title: 'Signed in',
                 description: 'You signed in to your Nexora account.',
                 time: user.lastLoginAt,
             });
         }
 
-        return sendSuccess(res, 'Recent activity loaded.', { activities });
+        if (user.createdAt) {
+            activities.push({
+                title: 'Welcome to Nexora',
+                description: 'Your account is ready to use.',
+                time: user.createdAt,
+            });
+        }
+
+        activities.sort(
+            (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+        );
+
+        return sendSuccess(res, 'Recent activity loaded.', {
+            activities,
+        });
     } catch (error) {
         return next(error);
     }

@@ -4,14 +4,44 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import authService from '../services/authservice';
 
 const RESEND_COOLDOWN_SECONDS = 60;
+const PENDING_EMAIL_KEY = 'nexora_pending_email';
+
+function getStoredEmail() {
+    try {
+        return sessionStorage.getItem(PENDING_EMAIL_KEY) || '';
+    } catch {
+        return '';
+    }
+}
+
+function saveStoredEmail(email) {
+    try {
+        sessionStorage.setItem(PENDING_EMAIL_KEY, email);
+    } catch {
+        // Verification can still continue if browser storage is unavailable.
+    }
+}
+
+function removeStoredEmail() {
+    try {
+        sessionStorage.removeItem(PENDING_EMAIL_KEY);
+    } catch {
+        // Ignore storage errors; they should not block verification.
+    }
+}
 
 function VerifyEmail() {
     const location = useLocation();
     const navigate = useNavigate();
+
     const redirectTimerRef = useRef(null);
     const cooldownTimerRef = useRef(null);
+    const verificationInProgressRef = useRef(false);
+    const resendInProgressRef = useRef(false);
 
-    const [email, setEmail] = useState(location.state?.email || '');
+    const [email, setEmail] = useState(
+        () => location.state?.email || getStoredEmail()
+    );
     const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
@@ -19,17 +49,14 @@ function VerifyEmail() {
     const [resending, setResending] = useState(false);
     const [cooldown, setCooldown] = useState(0);
 
+
     useEffect(() => {
-        if (!location.state?.email) {
-            const savedEmail = sessionStorage.getItem('nexora_pending_email');
-            if (savedEmail) setEmail(savedEmail);
-        } else {
-            sessionStorage.setItem(
-                'nexora_pending_email',
-                location.state.email
-            );
+        const stateEmail = location.state?.email;
+
+        if (stateEmail) {
+            saveStoredEmail(stateEmail);
         }
-    }, [location.state]);
+    }, [location.state?.email]);
 
     useEffect(() => {
         if (cooldown <= 0) return undefined;
@@ -50,50 +77,69 @@ function VerifyEmail() {
 
     async function handleVerify(event) {
         event.preventDefault();
+
+        if (verificationInProgressRef.current) return;
+
         setError('');
         setMessage('');
 
-        const trimmedEmail = email.trim();
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedOtp = otp.trim();
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
             setError('Please enter a valid email address.');
             return;
         }
 
-        if (!/^\d{6}$/.test(otp.trim())) {
+        if (!/^\d{6}$/.test(trimmedOtp)) {
             setError('Please enter the 6-digit OTP.');
             return;
         }
 
+        verificationInProgressRef.current = true;
+        setSubmitting(true);
+
         try {
-            setSubmitting(true);
+            await authService.verifyEmail(trimmedEmail, trimmedOtp);
 
-            await authService.verifyEmail(trimmedEmail, otp.trim());
-
-            sessionStorage.removeItem('nexora_pending_email');
+            removeStoredEmail();
+            setOtp('');
             setMessage(
                 'Email verified successfully! Redirecting to sign in...'
             );
 
             redirectTimerRef.current = setTimeout(() => {
-                navigate('/login', { replace: true });
+                navigate('/login', {
+                    replace: true,
+                    state: {
+                        message: 'Email verified successfully. Please sign in.',
+                    },
+                });
             }, 1200);
         } catch (requestError) {
             setError(
-                requestError.message || 'Verification failed. Please try again.'
+                requestError?.message ||
+                'Verification failed. Please try again.'
             );
         } finally {
+            verificationInProgressRef.current = false;
             setSubmitting(false);
         }
     }
 
     async function handleResend() {
-        if (resending || cooldown > 0) return;
+        if (
+            resendInProgressRef.current ||
+            verificationInProgressRef.current ||
+            cooldown > 0
+        ) {
+            return;
+        }
 
         setError('');
         setMessage('');
 
-        const trimmedEmail = email.trim();
+        const trimmedEmail = email.trim().toLowerCase();
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
             setError(
@@ -102,9 +148,10 @@ function VerifyEmail() {
             return;
         }
 
-        try {
-            setResending(true);
+        resendInProgressRef.current = true;
+        setResending(true);
 
+        try {
             await authService.resendOtp(trimmedEmail);
 
             setOtp('');
@@ -112,9 +159,11 @@ function VerifyEmail() {
             setMessage('A new OTP has been requested. Check your email.');
         } catch (requestError) {
             setError(
-                requestError.message || 'Unable to resend OTP. Please try again.'
+                requestError?.message ||
+                'Unable to resend OTP. Please try again.'
             );
         } finally {
+            resendInProgressRef.current = false;
             setResending(false);
         }
     }
@@ -176,7 +225,9 @@ function VerifyEmail() {
                         value={otp}
                         onChange={(event) => {
                             setOtp(
-                                event.target.value.replace(/\D/g, '').slice(0, 6)
+                                event.target.value
+                                    .replace(/\D/g, '')
+                                    .slice(0, 6)
                             );
                             setError('');
                         }}
@@ -201,7 +252,7 @@ function VerifyEmail() {
                     <button
                         className="sign-in-button"
                         type="submit"
-                        disabled={submitting}
+                        disabled={submitting || resending}
                     >
                         {submitting ? 'Verifying...' : 'Verify email'}
                         {!submitting && <span>↗</span>}
@@ -215,7 +266,11 @@ function VerifyEmail() {
                         type="button"
                         className="text-action"
                         onClick={handleResend}
-                        disabled={resending || cooldown > 0}
+                        disabled={
+                            resending ||
+                            submitting ||
+                            cooldown > 0
+                        }
                     >
                         {resending
                             ? 'Sending...'

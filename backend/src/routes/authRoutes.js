@@ -23,7 +23,7 @@ import {
     loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
-    updateProfileSchema
+    updateProfileSchema,
 } from '../validators/authValidators.js';
 
 import {
