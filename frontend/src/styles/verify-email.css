@@ -1,0 +1,98 @@
+/* NEXORA — Email OTP verification */
+
+.otp-label {
+    display: block;
+    margin-bottom: 12px;
+    color: #e8e1d5;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.otp-inputs {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 9px;
+    width: 100%;
+    margin: 10px 0 24px;
+}
+
+.otp-inputs input {
+    width: 100%;
+    min-width: 0;
+    height: 52px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    outline: none;
+    background: rgba(255, 255, 255, 0.035);
+    color: #e1c99e;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    caret-color: #c7a875;
+    transition:
+        border-color 0.2s,
+        background 0.2s,
+        box-shadow 0.2s;
+}
+
+.otp-inputs input:hover {
+    border-color: rgba(199, 168, 117, 0.45);
+}
+
+.otp-inputs input:focus {
+    border-color: #c7a875;
+    background: rgba(199, 168, 117, 0.06);
+    box-shadow: 0 0 0 3px rgba(199, 168, 117, 0.09);
+}
+
+.otp-inputs input::selection {
+    background: #c7a875;
+    color: #11110f;
+}
+
+
+/* Resend OTP text link */
+.card-footer .text-action {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--gold, #d2b078);
+    font: inherit;
+    font-size: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.card-footer .text-action:hover:not(:disabled) {
+    color: #f0d8aa;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.card-footer .text-action:focus-visible {
+    outline: 2px solid var(--gold, #d2b078);
+    outline-offset: 3px;
+}
+
+.card-footer .text-action:disabled {
+    color: var(--muted, #a49d91);
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+
+@media (max-width: 380px) {
+    .otp-inputs {
+        gap: 6px;
+    }
+
+    .otp-inputs input {
+        height: 46px;
+        font-size: 17px;
+    }
+}
